@@ -1,0 +1,801 @@
+---
+title: "Uncovering Patterns in Obesity through Lifestyle"
+author: "Panagiotis Valsamis"
+date: "2025-01-22"
+format:
+  revealjs:
+    slide-number: true
+    pdf: true
+    theme: simple
+    transition: fade
+---
+
+## About obesity
+
+Obesity has become one of the most pressing health issues of our time,affecting millions of individuals around the world(according to the "World Health Organization",**43%** of adults are overweight).In general it is affected by different factors such as lifestyle,genetics and environmental factors.
+
+In recent years,**obesity has been linked to an increased risk of chronic diseases** such as diabetes,heart disease and cancers.Obesity also impacts **mental health** and influences the quality of living such as **sleeping or moving**.
+
+## Exploring the dataset
+
+The dataset came from UCI Machine Learning Repository.It includes data from individuals from Colombia,Mexico and Peru and it classifies into 7 different categories based on their eating habits and physical condition.The dataset includes 2117 records with 17 attributes.
+
+```{r}
+library(tidyverse)
+#Loading the dataset.
+data=read_csv("data/ObesityDataSet_raw_and_data_sinthetic.csv")
+
+#Displaying the first 10 rows of the dataset to understand the structure of the dataset.
+head(data,10)
+```
+
+## Tools and Libraries used
+
+```{r echo=TRUE}
+library(tidyverse)
+library(ggplot2)
+library(patchwork)
+library(viridis)
+library(ggridges)
+library(dplyr)
+library(gganimate)
+library(gifski)
+library(GGally)
+library(gt)
+
+```
+
+## Distribution by gender and by obesity category
+
+```{r}
+
+#Choosing custom colors for each obesity category based on its importance.
+
+custom_colors <- c(
+    "Insufficient_Weight" = "#32CD32",  # Green
+    "Normal_Weight" = "#008000",       # Dark Green
+    "Overweight_Level_I" = "#FFD700",  # Yellow
+    "Overweight_Level_II" = "#FFA500", # Orange
+    "Obesity_Type_I" = "#FF4500",      # Red
+    "Obesity_Type_II" = "#B22222",     # Dark Red
+    "Obesity_Type_III" = "#8B0000"     # Maroon
+)
+
+#Counting the occurences of each category in the dataset
+category_count <- as.data.frame(table(data$NObeyesdad))
+
+#Calculating the percentage distribution of each category.
+percentage_table <- category_count |> 
+    mutate(percentage=(Freq/sum(Freq))*100)
+
+#Renaming the first column to "Category".
+names(percentage_table)[1] <- "Category"
+
+# Reordering the categories.
+percentage_table$Category <- factor(
+    percentage_table$Category,
+    levels = c("Insufficient_Weight", "Normal_Weight", 
+               "Overweight_Level_I", "Overweight_Level_II",
+               "Obesity_Type_I", "Obesity_Type_II", "Obesity_Type_III")
+)
+
+# Create a bar chart showing the percentage distribution of each category
+bar_chart <- ggplot(percentage_table, aes(x=Category, y=percentage, fill=Category)) +
+    geom_col(color="black") +#Black border around bars 
+    scale_fill_manual(values=custom_colors) +#Using the custom colors palette.
+    labs(
+        title="Distribution by Obesity Category",
+        x="Obesity Category",
+        y="Percentage (%)"
+    ) +
+    theme(
+        legend.position = "none",  # Removing the legend.
+        axis.text.x=element_text(angle=45, hjust=1, size=12),
+        axis.text.y=element_text(size=12),
+        axis.ticks=element_blank(),#Removing axis ticks.
+        panel.grid=element_blank(),#Removing background grid lines.
+        panel.background=element_blank(),#Removing the grey background
+        plot.title=element_text(hjust=0.5, size=14, face="bold")#Centering the title and making it as bold format
+    )
+
+#Counting the occurences of each gender in the dataset
+gender_count <- as.data.frame(table(data$Gender))
+
+#Calculating the percentage distribution of genders
+gender_percentage <- gender_count |> 
+    mutate(Percentage=(Freq/sum(Freq))*100)
+#Renaming the first column into "Gender"
+names(gender_percentage)[1] <- "Gender"
+
+#Creating pie chart showing the gender distribution.
+pie_chart_2 <- ggplot(gender_percentage,
+       aes(x="",y=Percentage,fill=Gender))+
+    geom_col(color="black")+
+    coord_polar(theta="y")+#Making into polar cordinates
+    labs(
+        title="Gender Distribution"
+    )+
+    theme(panel.background=element_blank(),
+         panel.grid=element_blank(),
+         legend.position="bottom",#Placing the gender at the bottom.
+         plot.title=element_text(hjust=0.5,size=14,face="bold")#Center the title
+    )
+
+#Combining the bar chart and pie chart.
+combined_pie <- bar_chart+pie_chart_2+
+    plot_layout(ncol=2)#Arranging the two plots in two columns
+#Displaying the combined chart
+combined_pie
+
+
+```
+
+## Distribution by gender in each obesity category
+
+```{r}
+#Grouping the data by gender and obesity category and then counting the number of individuals in each group
+gender_obesity_counts <- data |> 
+    group_by(NObeyesdad,Gender) |> 
+    summarise(count=n())
+
+#Transforming data to wider form,with sepearate columns for each gender
+gender_obesity_wider <- gender_obesity_counts |> 
+    pivot_wider(names_from=Gender,values_from=count,values_fill=0) |> #Fill missing,in this dataset there are no missing values at all but just to be sure
+    mutate(Male=-Male) #Negate males in order to visualize the genders in opposite sides of the chart
+
+#Converting the wider format back to a long format.
+gender_obesity_long <- gender_obesity_wider |> 
+    pivot_longer(cols=c("Female","Male"),names_to="Gender",values_to="Count")
+
+#Creating a bar chart,which visualizes the numbers of individual by gender and obesity category
+ggplot(gender_obesity_long, aes(x = reorder(NObeyesdad, Count), y = Count, fill = Gender)) +
+  geom_bar(stat = "identity", position = "identity") +
+  coord_flip() +#Flipping coordinates in order to make horizontal bar chart
+  theme_minimal() +
+  labs(
+    title = "Number of Individuals by Gender and Obesity Category",
+    x = "Type of Obesity",
+    y = "Number of Individuals",
+    fill = "Gender"
+  ) +
+  scale_y_continuous(labels = abs, breaks = seq(-300, 300, 150)) +#Defining the breaks.
+  scale_fill_manual(
+    values = c("Female" = "pink", "Male" = "lightblue"),#Defining custom colors.    
+    labels = c("Female", "Male")
+  ) +
+  theme(
+    plot.title = element_text(size = 14, hjust = 0.5, face = "bold"),
+    axis.title.x = element_text(size = 12),
+    axis.title.y = element_text(size = 12),
+    axis.text = element_text(size = 10),
+    legend.title = element_text(size = 12),
+    legend.text = element_text(size = 10)
+    #Formatting the size of every title-label.
+  )
+
+```
+
+## Adding BMI as a Key Metric
+
+```{r}
+
+#Adding BMI
+data_bmi <- data |>
+    mutate(BMI=data$Weight / (data$Height^2)) |>#Calculating BMI by the known type(Weight/(Height^2))
+    relocate(BMI,.after=Weight) |>#Placing BMI column after the Weight column.
+    relocate(NObeyesdad,.after=Gender) |>#Placing the Nobeyesdad column after the gender column
+    mutate(NObeyesdad = factor(NObeyesdad, levels = c(
+    "Insufficient_Weight", "Normal_Weight",   "Overweight_Level_I", "Overweight_Level_II",
+    "Obesity_Type_I", "Obesity_Type_II", "Obesity_Type_III"
+  )))#Reordering the obesity categories
+
+
+#Summarizing BMI statistics(mean,median,max,min,SD)
+bmi_summary <- data_bmi |>
+    group_by(NObeyesdad) |>
+    summarise(
+        Mean_BMI=round(mean(BMI),2),
+        Median_BMI=round(median(BMI),2),
+        SD_BMI=round(sd(BMI),2),
+        Min_BMI=round(min(BMI),2),
+        Max_BMI=round(max(BMI),2)
+    )#Rounding everything up to 2 digits
+
+#Creating a table to display BMI statistics
+bmi_summary |>
+    gt() |>#Using the gt package
+    cols_align(align="left",columns=everything()) |>#Aligning all the columns to the left
+    cols_label(#Renaming the columns
+        NObeyesdad="Obesity Category",
+        Mean_BMI="Mean",
+        Median_BMI="Median",
+        SD_BMI="Standard Deviation",
+        Min_BMI="Minimum",
+        Max_BMI="Maximum"
+    ) |>
+    tab_spanner(#Putting the name columns under the header (BMI STATISTICS)
+        label="BMI Statistics",
+        columns=c(Mean_BMI,Median_BMI,SD_BMI,Min_BMI,Max_BMI)
+    ) |>
+    tab_options(
+    column_labels.background.color = "#4CAF50",#Setting background color for columns as green
+    column_labels.font.weight = "bold",#Making columns labels bold
+    table.border.top.color = "black", 
+    table.border.bottom.color = "black",
+    table.font.size = px(14) #Adjusting the font size of the table.
+  ) |>
+  tab_style(
+    style = cell_text(weight = "bold"),
+    locations = cells_body(columns = everything())
+  ) |>
+  tab_style(#Adding a light gray color for alternate colors to improve the readability of the table
+    style = list(cell_fill(color = "lightgrey")),
+    locations = cells_body(rows = seq(1, nrow(bmi_summary), 2))#Applying this to odd rows
+  ) |>
+  tab_header(#Adding a title and subtitle to the table.
+    title = "BMI Statistics Across Obesity Categories",
+    subtitle = "Summary of key statistics for BMI"
+  )
+```
+
+## Age-BMI Relationship Analysis
+
+```{r}
+#Creating a density plot for age.
+age_plot<-ggplot(data,aes(x=Age))+
+    geom_density(fill="blue",color="blue",linewidth=1,alpha=0.8)+#Adding a density curve with blue color 
+    geom_vline(aes(xintercept=mean(Age,na.rm=TRUE)),color="red",linetype="dashed",size=1)+#Adding a vertical line at the mean of the age
+    labs(
+         x="Age",
+         y="Density")+
+    theme_classic()+
+    theme(
+        plot.title=element_text(hjust=0.5,face="bold",size=16),
+        axis.title=element_text(size=12),
+        axis.text=element_text(size=10)
+    )
+
+#Categorizing the ages into age groups
+data_agegroup_bmi<-data_bmi |> 
+    mutate(Age_Group=cut(Age,breaks=c(10,20,30,40,50,60,70),
+                         labels=c("10-20","20-30","30-40","40-50","50-60","60-70"),right=FALSE))
+
+#Calculating the mean BMI for each gender and each age group.
+bmi_summary <- data_agegroup_bmi |> 
+    group_by(Gender,Age_Group) |> #Groupping by gender and age group
+    summarise(meanBMI_byagegroup=mean(BMI), .groups="drop")#Calculating mean BMI for each group and dropping after the groupping
+
+#Creating a heatmap plot to visualize the mean BMI by gender and age group
+heatmap_plot <- ggplot(bmi_summary, aes(x = Age_Group, y = Gender, fill = meanBMI_byagegroup)) +
+  geom_tile(color = "black") +#Adding tiles with black border
+  scale_fill_viridis(name = "Mean BMI", option = "D") +#Using the viridis color scale
+  labs(
+    x = "Age Group",
+    y = "Gender"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+    axis.text.x = element_text(angle = 45, hjust = 1),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold")
+  )
+
+#Creating a scatter plot to display the relationship between AGE and BMI
+scatter_plot <- ggplot(data_bmi, aes(x = Age, y = BMI)) +
+  geom_point(color = "blue", alpha = 0.6)+
+    labs(
+    x = "Age",
+    y = "BMI"
+  ) +
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+    plot.title = element_text(hjust = 0.5, size = 14, face = "bold"),
+    axis.text = element_text(size = 12),
+    axis.title = element_text(size = 12)
+  )
+
+#Combining  the plots into a single layout
+combined1_plot <- (age_plot |heatmap_plot)/scatter_plot +
+  plot_annotation(
+    title = "Analysis of Age and BMI Data",#Title for the combining plot
+    theme = theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.margin = margin(t = 10, r = 10, b = 10, l = 10)
+    )
+  )
+#Displaying the combined plot
+combined1_plot
+```
+
+## Family History's Role in the "worst" Obesity Types
+
+```{r}
+#Filtering the data only to include individuals from Obesity Type I,II and III
+data_high_obesity <- data |> 
+    filter((NObeyesdad=="Obesity_Type_I") | (NObeyesdad=="Obesity_Type_II") | (NObeyesdad=="Obesity_Type_III"))
+
+#Creating a bar plot to show the distribution of family history across these three obesity categories
+ggplot(data_high_obesity,aes(x=family_history_with_overweight,fill=NObeyesdad))+
+    geom_bar(position="dodge")+
+    facet_grid(cols=vars(NObeyesdad))+#Creating separate panels for each obesity level
+    ylim(0,400)+#Setting the y axis limits to 400
+    labs(
+        title="Impact of Family History in Obesity Levels I,II and III",
+        x="Family History of Obesity",
+        fill="Obesity Levels")+
+    theme_minimal(base_size=12)+
+    theme(
+        legend.position="none",
+        plot.title=element_text(hjust=0.5,size=14,face="bold"),
+        axis.text.x=element_text(size=12),
+        axis.text.y=element_text(size=12))
+```
+
+## Percentage of having at least an overweight family member
+
+```{r}
+#Groupping and summarizing data to calculate the percentage of family history of each obesity category
+group_cat <- data |> 
+    group_by(NObeyesdad,family_history_with_overweight) |> 
+    summarise(count=n()) |> 
+    spread(key=family_history_with_overweight,value=count,fill=0) |> #Again i dont have missing values but i am adding this just in case.
+    mutate(
+        Total= yes + no,
+        Percentage_Yes=(yes / Total) *100,
+        Percentage_No=(no / Total) *100
+    ) 
+
+#Creating a bar plot to show the percentage of "yes" responses for family history
+ggplot(group_cat,aes(x=Percentage_Yes,y=reorder(NObeyesdad,Percentage_Yes),fill=NObeyesdad))+
+    geom_bar(stat="identity",color="black",width=0.7)+
+    scale_fill_manual(values=custom_colors)+#I am using the custom colors palette,which i have created in the beggining of the project
+    theme_minimal()+
+     theme(
+    text = element_text(family = "sans", size = 12), 
+    plot.title = element_text(hjust = 0.5, face = "bold", size = 16), 
+    axis.text.x = element_text(size = 10), 
+    axis.text.y = element_text(face = "bold", size = 12), 
+    axis.title.x = element_text(face = "bold", size = 12), 
+    axis.title.y = element_blank(), 
+    legend.position = "none",
+    panel.grid = element_blank()
+  ) +
+  labs(
+    title = "Family History Across Categories",
+    subtitle = "Percentage of Family History Across Obesity Levels",
+    x = "Percentage (%)"
+  )
+```
+
+## Anova Test
+
+```{r}
+anova_result <- aov(BMI ~ family_history_with_overweight,data=data_bmi)
+summary(anova_result)
+
+#Setting the significance level
+alpha <- 0.001
+
+anova_summary <- summary(anova_result)
+
+#Checking if the p value is less than alpha
+#If is less then reject the null hypothesis
+if (anova_summary[[1]]["family_history_with_overweight", "Pr(>F)"] < alpha) {
+  print("The result is statistically significant (p < alpha). Reject the null hypothesis.")
+} else {
+  print("The result is not statistically significant (p >= alpha). Fail to reject the null hypothesis.")
+}
+
+
+
+```
+
+The purpose of Anova test is to check if individuals with and without family history of obesity have significant different levels of BMI,a very small level(alpha) is chosen in order to reduce possibility of error.
+
+So we can see that the P value is extremely small(it means that we reject the null hypothesis) so BMI is significantly dependent with the categorical variable family_history_with_overweight.
+
+## BMI distribution by family history with overweight
+
+```{r}
+#Creating boxplot to visualize BMI distribution by family history overweight.
+ggplot(data_bmi, aes(x = family_history_with_overweight, y = BMI, fill = family_history_with_overweight)) +
+  geom_boxplot(outlier.colour = "red", outlier.size = 2) +#Set color,size for outliers
+    geom_jitter(color = "black", size = 1, width = 0.2, alpha = 0.5)+#Set color for jitter points,width is used to spread the points horizontally for better visualization and transparency is set by alpha for overlapping points.
+  labs(
+    title = "BMI Distribution by Family History of Overweight",
+     subtitle = "Comparing BMI based on the presence of a family history of overweight",
+    x = "Family History of Overweight",
+    y = "BMI"
+  ) +
+  theme_minimal(base_size=14) +
+  scale_fill_manual(values = c("#1f78b4", "#33a02c")) +#Manually set colors for each category
+  theme(
+      legend.position = "none",
+      plot.title = element_text(hjust = 0.5, face = "bold", size = 16),
+      plot.subtitle = element_text(hjust = 0.5, size = 12), 
+      axis.title.x = element_text(face = "bold"),
+      axis.title.y = element_text(face = "bold")
+      )
+```
+
+## Impact of physical activity in the "worst" obesity types
+
+```{r}
+#Calculating the mean physical activity frequency for high obesity levels
+mean_high <- data_high_obesity |> 
+    group_by(NObeyesdad) |> 
+    summarise(mean_physical_activity=mean(FAF,na.rm=TRUE))
+
+#Creating a histogram to visualize the physical activity levels for high obesity types
+ggplot(data_high_obesity,
+       aes(x=FAF,fill=NObeyesdad))+
+    geom_histogram(position="dodge",bins=10,color="black")+
+    facet_grid(cols=vars(NObeyesdad))+#Creating separate panels for each obesity category
+     geom_vline(data=mean_high,aes(xintercept = mean_physical_activity), 
+             color = "red", linetype = "dashed", linewidth=1.2)+#Using red dashed line to represent the mean
+    labs(
+        title="Relationship Between Physical Activity and Obesity Levels (I, II, III)",
+        subtitle=" Frequency of Physical Activity:\n 0 = Lowest level of Activity \n 3 = Highest level of Activity \n \n Red dashed line represents the Mean",
+        x="Frequency of Physical Activity",
+        y="Number of Individuals",
+        fill="Obesity Levels")+
+    theme_minimal(base_size=12)+
+    scale_fill_manual(values=custom_colors)+
+    theme(legend.position="none",
+        panel.spacing=unit(2,"lines"),#Adding space between panels
+        plot.title=element_text(hjust=0.5,size=14,face="bold"),
+        plot.subtitle =element_text(hjust=1,size=11,face="italic"),
+        axis.text.x=element_text(size=12,face="bold"),
+        axis.text.y=element_text(size=12,face="bold"))
+
+
+
+
+```
+
+## Impact of physical activity in the other obesity types
+
+```{r}
+#Filtering data for low obesity types
+data_low_obesity <- data |> 
+    filter((NObeyesdad=="Insufficient_Weight") | (NObeyesdad=="Normal_Weight") | (NObeyesdad=="Overweight_Level_I") | (NObeyesdad=="Overweight_Level_II"))
+
+#Calculating the mean frequency of physical activity
+mean_low <- data_low_obesity |> 
+    group_by(NObeyesdad) |> 
+    summarise(mean_physical=mean(FAF,na.rm=TRUE))
+
+#Creating histogram to visualize the physical activity levels of the low obesity categories
+ggplot(data_low_obesity,
+       aes(x=FAF,fill=NObeyesdad))+
+    geom_histogram(position="dodge",bins=10,color="black")+
+    facet_wrap(vars(NObeyesdad))+
+    theme_minimal(base_size=12)+
+     geom_vline(data=mean_low,aes(xintercept = mean_physical), 
+             color = "red", linetype = "dashed", linewidth = 1.2) +
+    labs(
+        title="Frequency of Physical Activity in lowest Obesity Categories",
+        subtitle="Frequency of Physical Activity:\n0 = Lowest level of Activity \n3 = Highest level of Activity",
+        fill="Red dashed line \nrepresents the Mean \n \n \n \n Obesity Types",
+        x="Frequency of Physical Activity",
+        y="Number of Individuals"
+    )+
+    theme(
+        plot.title=element_text(hjust=0.1,size=14,face="bold"),
+        plot.subtitle =element_text(hjust=1.7,size=10,face="italic")
+    )+
+    scale_fill_manual(values=custom_colors)
+```
+
+## Mean physical activity per week for each obesity type
+
+```{r}
+#Calculating the mean physical activity for each category
+mean_physical_act <- data |> 
+    group_by(NObeyesdad) |> 
+    summarise(mean_physical=mean(FAF))
+
+#Creating a lollipop plot to visualize the average physical activity of each category
+ggplot(mean_physical_act,aes(x=mean_physical,y=reorder(NObeyesdad,mean_physical)))+
+    geom_segment(aes(x=0,xend=mean_physical,y=NObeyesdad,yend=NObeyesdad),
+                 color="black",linetype="dotted")+
+    geom_point(color="blue",size=2)+#Point color and size
+    labs(
+    title = "Average Physical Activity by Obesity Level",
+    x = "Mean Physical Activity",
+    y = "Obesity Level"
+  ) +
+  theme_minimal(base_size = 12) +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.title.x = element_text(size = 12, face = "bold"),
+    axis.title.y = element_text(size = 12, face = "bold"),
+    axis.text = element_text(size = 10)
+  )
+```
+
+## Most common way to transport for every obesity category
+
+```{r}
+#Grouping data by transportation mode and obesity type to calculate the number of individual in each group
+data_foranimate <- data |>
+    group_by(MTRANS,NObeyesdad) |>
+    summarise(count=n())
+
+#Creating an animated plot to visualize the number of individuals using every transportation mode in every obesity category
+animated_plot <- ggplot(data_foranimate,aes(x=MTRANS,y=count,fill=NObeyesdad))+
+    geom_bar(stat="identity",color="black",width=0.7)+
+    scale_fill_manual(values=custom_colors)+
+     labs(
+    title = "Obesity Category: {closest_state}",
+    x = "Transportation Type",
+    y = "Value",
+    fill = "Obesity Category"
+  ) +
+  theme_minimal() +
+  theme(
+    plot.title = element_text(hjust = 0.5, size = 16, face = "bold"),
+    axis.text.x = element_text(angle = 45, hjust = 1, size = 12),
+    axis.text.y = element_text(size = 12),
+    legend.position = "right"
+  ) +
+  transition_states(NObeyesdad, transition_length = 2, state_length = 1) +#Aimate by transiotioning through obesity categories
+  ease_aes('linear')#Using this in order for the transitions between states to be made in constant speed
+
+animate(animated_plot)
+```
+
+## Mean BMI for each transportation mode
+
+```{r}
+#Calculating mean bmi for each transportation mode
+data_for_transp <- data_bmi |> 
+    group_by(MTRANS) |> 
+    summarise(MeanBMI=mean(BMI))
+
+#Creating a point plot to visualize the mean BMI for each transportation mode
+ggplot(data_for_transp, aes(y = reorder(MTRANS, MeanBMI), x = MeanBMI, color = MTRANS)) +
+  geom_point(size = 4) +
+  theme_minimal() +
+  labs(title = "Mean BMI by Transportation Mode",
+       y = "Transportation Mode", x = "Mean BMI") +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        legend.position = "none")
+```
+
+## Anova Test in order to find the correlation between BMI and every tranportation way
+
+```{r}
+anova_res_transport <- aov(BMI~MTRANS,data=data_bmi)
+summary(anova_res_transport)
+
+alpha <- 0.001
+
+anova_summary_1 <- summary(anova_res_transport)
+
+if (anova_summary_1[[1]]["MTRANS", "Pr(>F)"] < alpha) {
+  print("The result is statistically significant (p < alpha). Reject the null hypothesis.")
+} else {
+  print("The result is not statistically significant (p >= alpha). Fail to reject the null hypothesis.")
+}
+```
+
+## Tukey test and illustrating the significant pairs
+
+```{r}
+#Performing Tukey's HSD(Honest Significant Difference)test on Anova results
+tukey_result <- TukeyHSD(anova_res_transport)
+tukey_df <- as.data.frame(tukey_result$MTRANS)#Converting to data frame
+tukey_df$Comparison <- rownames(tukey_df)#Adding a column for the comparison pairs
+rownames(tukey_df) <- NULL
+
+#Adding a significance column based on the p-values
+tukey_df$Significance <- ifelse(tukey_df$`p adj`<0.05,"Significant","Not Significant")
+
+#Creating a bar plot to visualize mean BMI differences between transportation modes
+ggplot(tukey_df, aes(x = reorder(Comparison, -diff), y = diff, fill = Significance)) +
+  geom_bar(stat = "identity", position = "dodge", color = "black") +
+  geom_errorbar(aes(ymin = lwr, ymax = upr), width = 0.2) +
+  scale_fill_manual(values = c("Significant" = "red", "Not Significant" = "gray")) +
+  theme_minimal() +
+  labs(
+    title = "Mean BMI Differences Between Transportation Modes (Tukey HSD)",
+    x = "Comparison (Transportation Mode Pair)",
+    y = "Mean BMI Difference"
+  ) +
+  theme(axis.text.x = element_text(angle = 45, hjust = 1),
+        panel.grid = element_blank())
+```
+
+## Visualization of key variables for every obesity category
+
+```{r}
+#Defining obesity categories groups
+worst_categories <- c("Obesity_Type_I","Obesity_Type_II","Obesity_Type_III")
+other4_categories <- c("Insufficient_Weight","Normal_Weight","Overweight_Level_I","Overweight_Level_II")
+#Selecting columns for plotting
+plot_data <- data_bmi |> 
+    select(BMI,CH2O,NCP,FCVC,NObeyesdad)
+plot_data$NObeyesdad <- as.factor(plot_data$NObeyesdad)#Converting obesity category to a factor
+
+#Normalizing numeric columns to 0-1 scale
+numeric_cols <- c("BMI","CH2O","NCP","FCVC")
+plot_data[numeric_cols] <- lapply(plot_data[numeric_cols],function(x) (x-min(x))/(max(x)-min(x)))
+
+#Filtering data for worst obesity categories
+plot1 <- plot_data |> 
+    filter(NObeyesdad %in% worst_categories)
+
+#Filtering data for other obesity categories
+plot2 <- plot_data |> 
+    filter(NObeyesdad %in% other4_categories)
+
+#Creating a parallel coordinate plot for worst categories
+plot_1 <- ggparcoord(data = plot1,
+                     columns = 1:4,
+                     groupColumn = 5,
+                     scale = "uniminmax",#Ensure that variables are uniformly scaled
+                     alphaLines = 0.3) +
+  labs(title = "Parallel Coordinate Plot: Worst Categories",
+       x = "Variables",
+       y = "Scaled Values",
+       color="Obesity Type") +
+  theme_minimal() +
+  scale_color_manual(values = c(#Applying custom colors
+      "Obesity_Type_I" = "#D55E00",  
+      "Obesity_Type_II" = "#0072B2",  
+      "Obesity_Type_III" = "#009E73"  
+    ))
+
+#Creating a parallel plot for other obesity categories
+plot_2 <- ggparcoord(data = plot2,
+                     columns =1:4,
+                     groupColumn = 5,
+                     scale = "uniminmax",
+                     alphaLines = 0.3) +
+  labs(title = "Parallel Coordinate Plot: Other Categories",
+       x = "Variables",
+       y = "Scaled Values",
+       color="Obesity Type") +
+  theme_minimal() +
+  scale_color_manual(#Applying custom colors
+    values = c(
+      "Insufficient_Weight" = "#CC79A7",  
+      "Normal_Weight" = "#E69F00",  
+      "Overweight_Level_I" = "#56B4E9",  
+      "Overweight_Level_II" = "#F0E442"  
+    )
+  )
+
+#Combinining the two plots into one display
+combined_plot <- plot_1 / plot_2 +
+  plot_annotation(
+    title = "Visualizing Obesity Trends Across Key Variables",
+    subtitle = "Comparison between Worst and Other Obesity Categories",
+    theme = theme(
+      plot.title = element_text(size = 16, face = "bold", hjust = 0.5),
+      plot.subtitle = element_text(size = 12, hjust = 0.5)
+    )
+  )
+
+combined_plot
+```
+
+## Mean number of meals for every obesity category
+
+```{r}
+#Calculating the mean number of meals for each obesity category 
+mean_ncp <- data_bmi |> 
+    group_by(NObeyesdad) |> 
+    summarise(mean_NCP=mean(NCP))
+
+#Creating a bar plot to visualize the mean NCP by obesity category
+ggplot(mean_ncp,aes(x=reorder(NObeyesdad,-mean_NCP),y=mean_NCP,fill=NObeyesdad))+
+    geom_bar(stat="identity",color="black")+
+    labs(
+    title = "Mean NCP (Number of Meals) by Obesity Category",
+    x = "Obesity Category",
+    y = "Mean NCP",
+    fill = "Obesity Category"
+  )+
+    scale_fill_manual(values=custom_colors)+
+  theme_minimal() +
+  theme(panel.grid = element_blank(),
+    legend.position = "none",               
+    axis.text.x = element_text(angle = 45, hjust = 1), 
+    plot.title = element_text(size = 16, face = "bold"),
+    axis.title = element_text(size = 14)
+  )
+```
+
+## Frequency of eating high caloric meals
+
+```{r}
+#Preparing data for the 1st graph
+data_graph1<-data |> 
+    filter((NObeyesdad=="Obesity_Type_III") | (NObeyesdad=="Insufficient_Weight")) |> 
+    group_by(NObeyesdad,FAVC) |> 
+    summarise(Count=n()) |> 
+    group_by(NObeyesdad) |> 
+    mutate(Percentage=(Count/sum(Count))*100)
+
+#Creating a bar plot showing the percentage of eating high caloric food for obesity type 3 category and for insufficient as well.
+graph1 <- ggplot(data_graph1,aes(x=FAVC,y=Percentage,fill=NObeyesdad))+
+    geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Comparison of FAVC Percentage (Obesity Type III vs Insufficient Weight)",
+    y = "Percentage",
+    fill = "Obesity Category"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = custom_colors)#Based on the custom colors i made in the beggining
+
+#Data preparation for graph 2
+data_graph2<-data |> 
+    filter((NObeyesdad=="Obesity_Type_II") | (NObeyesdad=="Normal_Weight")) |> 
+    group_by(NObeyesdad,FAVC) |> 
+    summarise(Count=n()) |> 
+    group_by(NObeyesdad) |> 
+    mutate(Percentage=(Count/sum(Count))*100)
+
+#Creating a bar plot showing the percentage of eating high caloric food for obesity type 2 category and for normal weight category as well.
+graph2 <- ggplot(data_graph2,aes(x=FAVC,y=Percentage,fill=NObeyesdad))+
+    geom_bar(stat = "identity", position = "dodge") +
+  labs(
+    title = "Comparison of FAVC Percentage (Obesity Type II vs Normal Weight)",
+    y = "Percentage",
+    fill = "Obesity Category"
+  ) +
+  theme_minimal() +
+  scale_fill_manual(values = custom_colors)
+
+#Combining graph 1 and graph 2
+combined_gr <- graph1 / graph2 +
+  plot_annotation(
+    title = "Comparison of FAVC(Frequency of eating high caloric food) \n Percentage ",
+    theme = theme(plot.title = element_text(size = 16, face = "bold", hjust = 0.5))
+  )
+
+combined_gr
+```
+
+## Why these obesity pairs are so similar  {.smaller}
+
+The analysis reveals **notable similarities** between certain obesity categories,particularly in terms of:
+
+\-**High calorie food consumption frequency** and
+
+\-**Number of meals per day**
+
+Despite significant differences in BMI among individuals in these groups,these similarities suggest common pattern in eating behaviors.
+
+However,this observation highlights that **quantity and frequency of meals alone do not fully explain obesity levels**
+
+## Key Findings  {.smaller}
+
+This project highlights the **multifaceted factors** contributing to obesity, with a particular focus on the **strong influence of family history**.
+
+The findings reveal that individuals with a **family history of obesity** are significantly more likely to develop obesity themselves,showing the **crucial impact of genetics**.
+
+Additionally, **physical activity plays a crucial role**, as lower levels of activity are strongly associated with higher BMI, emphasizing the importance of maintaining an **active lifestyle**.
+
+## Key Findings {.smaller}
+
+Furthermore, variations in metabolism and lifestyle choices, such as diet and modes of transportation, also significantly impact obesity levels.
+
+Interestingly, the analysis also reveals that:
+
+-The *frequency of high calorie food consumption*
+
+-The *number of meals per day* do not fully explain differences in obesity levels among certain groups.
+
+Instead, **portion sizes and individual metabolic differences** are likely to play a critical role in determining BMI.
+
+These results highlight the importance of creating **personalized health plans** that take into account:
+
+-A person's genetic background
+
+-Their lifestyle choices
+
+-Family History
+
+# Thank you for your attention
